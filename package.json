@@ -1,0 +1,22 @@
+{
+  "name": "cash-apes-community",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "ethers": "^6.13.5",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "@reown/appkit": "latest",
+    "@reown/appkit-adapter-ethers": "latest",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {}
+}
