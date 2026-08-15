@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Contract, JsonRpcProvider } from "ethers";
 import { ArrowLeft, Download, ExternalLink, Grid2X2, Search, Sparkles, Wallet, X } from "lucide-react";
@@ -161,6 +161,8 @@ function App() {
   const [selected, setSelected] = useState([]);
   const [gridSize, setGridSize] = useState(3);
   const [gridBusy, setGridBusy] = useState(false);
+  const [gridText, setGridText] = useState("");
+  const previewCanvasRef = useRef(null);
 
   useEffect(() => {
     try { const cached = JSON.parse(localStorage.getItem(RARITY_CACHE_KEY) || "null"); if (cached?.ranks && cached?.frequencies) setRarityIndex(cached); } catch { /* ignore */ }
@@ -279,21 +281,50 @@ function App() {
   function toggleSelected(token) { setSelected(current => current.some(t => t.id === token.id) ? current.filter(t => t.id !== token.id) : current.length >= 16 ? current : [...current, token]); }
   const selectedIds = useMemo(() => new Set(selected.map(t => t.id)), [selected]);
   async function imageToObjectUrl(url) { const r = await fetch(url); if (!r.ok) throw new Error("Image fetch failed"); return URL.createObjectURL(await r.blob()); }
-  async function createGrid() {
-    if (!selected.length) return; setGridBusy(true);
-    const cols = Math.max(1, Math.min(gridSize, selected.length)), rows = Math.ceil(selected.length / cols), cell = 760, header = 260, footer = 120;
-    const canvas = document.createElement("canvas"); canvas.width = cols * cell; canvas.height = header + rows * cell + footer; const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.textAlign = "center"; ctx.fillStyle = "#c8ff00"; ctx.font = `900 ${Math.min(140, canvas.width / 7)}px Arial Black, Arial`; ctx.fillText("CASH APES", canvas.width / 2, 125); ctx.fillStyle = "#fff"; ctx.font = `700 ${Math.min(54, canvas.width / 18)}px Arial`; ctx.fillText(`${selected.length} APES • ROBINHOOD CHAIN`, canvas.width / 2, 205);
+  async function drawGrid(canvas, forDownload = false) {
+    if (!canvas || !selected.length) return;
+    const cols = Math.max(1, Math.min(gridSize, selected.length)), rows = Math.ceil(selected.length / cols);
+    const cell = forDownload ? 760 : 320, header = forDownload ? 300 : 130, footer = forDownload ? 120 : 56;
+    canvas.width = cols * cell; canvas.height = header + rows * cell + footer;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = "center"; ctx.fillStyle = "#c8ff00"; ctx.font = `900 ${Math.min(forDownload ? 140 : 58, canvas.width / 7)}px Arial Black, Arial`;
+    ctx.fillText("CASH APES", canvas.width / 2, forDownload ? 118 : 52);
+    const custom = gridText.trim();
+    ctx.fillStyle = "#fff"; ctx.font = `700 ${Math.min(forDownload ? 52 : 22, canvas.width / 18)}px Arial`;
+    ctx.fillText(custom || `${selected.length} APES • ROBINHOOD CHAIN`, canvas.width / 2, forDownload ? 205 : 88, canvas.width - 40);
+    ctx.fillStyle = "#777"; ctx.font = `700 ${Math.min(forDownload ? 28 : 12, canvas.width / 30)}px Arial`;
+    ctx.fillText(`${selected.length} APES • ROBINHOOD CHAIN`, canvas.width / 2, forDownload ? 255 : 112);
     const objectUrls = [];
     try {
       for (let i = 0; i < selected.length; i++) {
-        const token = selected[i], x = (i % cols) * cell, y = header + Math.floor(i / cols) * cell; ctx.fillStyle = "#111"; ctx.fillRect(x + 8, y + 8, cell - 16, cell - 16);
-        if (token.image) { const objectUrl = await imageToObjectUrl(token.image); objectUrls.push(objectUrl); const img = new Image(); await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = objectUrl; }); const scale = Math.max(cell / img.width, cell / img.height), w = img.width * scale, h = img.height * scale; ctx.save(); ctx.beginPath(); ctx.rect(x + 10, y + 10, cell - 20, cell - 20); ctx.clip(); ctx.drawImage(img, x + (cell - w) / 2, y + (cell - h) / 2, w, h); ctx.restore(); }
-        ctx.fillStyle = "rgba(0,0,0,.72)"; ctx.fillRect(x + 24, y + cell - 92, 220, 56); ctx.fillStyle = "#c8ff00"; ctx.textAlign = "left"; ctx.font = "800 28px Arial"; ctx.fillText(`#${token.id}`, x + 42, y + cell - 54);
+        const token = selected[i], x = (i % cols) * cell, y = header + Math.floor(i / cols) * cell;
+        ctx.fillStyle = "#111"; ctx.fillRect(x + 4, y + 4, cell - 8, cell - 8);
+        if (token.image) {
+          const objectUrl = await imageToObjectUrl(token.image); objectUrls.push(objectUrl);
+          const img = new Image(); await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = objectUrl; });
+          const scale = Math.max(cell / img.width, cell / img.height), w = img.width * scale, h = img.height * scale;
+          ctx.save(); ctx.beginPath(); ctx.rect(x + 5, y + 5, cell - 10, cell - 10); ctx.clip(); ctx.drawImage(img, x + (cell - w) / 2, y + (cell - h) / 2, w, h); ctx.restore();
+        }
+        ctx.fillStyle = "rgba(0,0,0,.72)"; ctx.fillRect(x + 10, y + cell - (forDownload ? 78 : 34), forDownload ? 190 : 82, forDownload ? 48 : 22);
+        ctx.fillStyle = "#c8ff00"; ctx.textAlign = "left"; ctx.font = `800 ${forDownload ? 26 : 12}px Arial`; ctx.fillText(`#${token.id}`, x + (forDownload ? 28 : 16), y + cell - (forDownload ? 46 : 18));
       }
-      ctx.textAlign = "center"; ctx.fillStyle = "#888"; ctx.font = `700 ${Math.min(30, canvas.width / 30)}px Arial`; ctx.fillText("CASH APES • COMMUNITY GRID", canvas.width / 2, canvas.height - 50); const a = document.createElement("a"); a.download = `cash-apes-grid-${selected.length}.png`; a.href = canvas.toDataURL("image/png"); a.click();
+      ctx.textAlign = "center"; ctx.fillStyle = "#777"; ctx.font = `700 ${forDownload ? 28 : 12}px Arial`; ctx.fillText("CASH APES • COMMUNITY GRID", canvas.width / 2, canvas.height - (forDownload ? 46 : 22));
+    } finally { objectUrls.forEach(URL.revokeObjectURL); }
+  }
+  useEffect(() => {
+    if (tab !== "grid" || !selected.length) return;
+    let cancelled = false;
+    (async () => { try { if (!cancelled) await drawGrid(previewCanvasRef.current, false); } catch (e) { console.error(e); } })();
+    return () => { cancelled = true; };
+  }, [tab, selected, gridSize, gridText]);
+  async function createGrid() {
+    if (!selected.length) return; setGridBusy(true);
+    try {
+      const canvas = document.createElement("canvas"); await drawGrid(canvas, true);
+      const a = document.createElement("a"); a.download = `cash-apes-grid-${selected.length}.png`; a.href = canvas.toDataURL("image/png"); a.click();
     } catch (e) { console.error(e); alert("Grid export was blocked by the image gateway. Try again in a moment."); }
-    finally { objectUrls.forEach(URL.revokeObjectURL); setGridBusy(false); }
+    finally { setGridBusy(false); }
   }
 
   const openToken = token => navigate("detail", token.id);
@@ -340,7 +371,7 @@ function App() {
             <div className="detail-rarity"><div><span>RARITY RANK</span><strong>{Number.isFinite(detailToken.rank) ? `#${detailToken.rank}` : "—"}</strong></div><div><span>TIER</span><strong className="lime">{detailToken.tier}</strong></div><div><span>TRAITS</span><strong>{detailToken.attributes.length}</strong></div></div>
             {detailToken.description && <p className="detail-description">{detailToken.description}</p>}
             <h3>TRAITS</h3><div className="traits-grid">{detailToken.attributes.length ? detailToken.attributes.map((a,i) => { const count = rarityIndex?.frequencies?.[traitKey(a?.trait_type,a?.value)]; const pct = count ? ((count / SITE_CONFIG.supply) * 100).toFixed(count / SITE_CONFIG.supply < .01 ? 2 : 1) : null; return <div className="trait" key={`${a?.trait_type}-${i}`}><span>{a?.trait_type || "TRAIT"}</span><strong>{String(a?.value ?? "—")}</strong>{count && <em>{count.toLocaleString()} • {pct}%</em>}</div>; }) : <div className="empty-traits">No traits in metadata.</div>}</div>
-            <div className="detail-actions"><a href={`${SITE_CONFIG.openSeaUrl}/${detailToken.id}`} target="_blank" rel="noreferrer">VIEW ON OPENSEA <ExternalLink size={14}/></a><a href={`${SITE_CONFIG.explorerBaseUrl}/token/${SITE_CONFIG.contractAddress}/instance/${detailToken.id}`} target="_blank" rel="noreferrer">BLOCKSCOUT <ExternalLink size={14}/></a></div>
+            <div className="detail-actions"><a href={`https://opensea.io/item/robinhood/${SITE_CONFIG.contractAddress.toLowerCase()}/${detailToken.id}`} target="_blank" rel="noreferrer">VIEW ON OPENSEA <ExternalLink size={14}/></a><a href={`${SITE_CONFIG.explorerBaseUrl}/token/${SITE_CONFIG.contractAddress}/instance/${detailToken.id}`} target="_blank" rel="noreferrer">BLOCKSCOUT <ExternalLink size={14}/></a></div>
           </div>
         </div> : <div className="empty">Could not load this Cash Ape.</div>}
       </section>}
@@ -351,8 +382,24 @@ function App() {
       </section>}
 
       {tab === "grid" && <section className="workspace route-workspace">
-        <div className="section-head"><div><span className="kicker">MAKE IT YOURS</span><h2>Grid Builder</h2><p>Select up to 16 Cash Apes and create one shareable PNG.</p></div></div>
-        {!isConnected ? <ConnectPanel open={open}/> : <><div className="builder-bar"><div><span>SELECTED</span><strong>{selected.length} / 16</strong></div><div className="grid-size"><span>COLUMNS</span>{[2,3,4].map(n => <button key={n} className={gridSize === n ? "active" : ""} onClick={() => setGridSize(n)}>{n}</button>)}</div><button className="download" disabled={!selected.length || gridBusy} onClick={createGrid}><Download size={17}/>{gridBusy ? "BUILDING…" : "CREATE PNG"}</button></div>{myBusy && !myTokens.length && <div className="loading">FINDING YOUR APES…</div>}{!myBusy && !myTokens.length && <div className="empty">{myStatus || "No Cash Apes loaded."}</div>}<div className="nft-grid">{myTokens.map(t => <TokenCard key={t.id} token={t} selectable selected={selectedIds.has(t.id)} onToggle={toggleSelected}/>)}</div></>}
+        <div className="section-head"><div><span className="kicker">MAKE IT YOURS</span><h2>Grid Builder</h2><p>Select up to 16 Cash Apes, preview the grid live, add your own text and download it.</p></div></div>
+        {!isConnected ? <ConnectPanel open={open}/> : <>
+          <div className="builder-bar"><div><span>SELECTED</span><strong>{selected.length} / 16</strong></div><div className="grid-size"><span>COLUMNS</span>{[2,3,4].map(n => <button key={n} className={gridSize === n ? "active" : ""} onClick={() => setGridSize(n)}>{n}</button>)}</div><button className="download" disabled={!selected.length || gridBusy} onClick={createGrid}><Download size={17}/>{gridBusy ? "BUILDING…" : "DOWNLOAD PNG"}</button></div>
+          <div className="grid-builder-layout">
+            <div className="grid-picker">
+              <div className="grid-picker-title"><span>YOUR APES</span><strong>CLICK TO SELECT</strong></div>
+              {myBusy && !myTokens.length && <div className="loading">FINDING YOUR APES…</div>}
+              {!myBusy && !myTokens.length && <div className="empty">{myStatus || "No Cash Apes loaded."}</div>}
+              <div className="nft-grid grid-picker-grid">{myTokens.map(t => <TokenCard key={t.id} token={t} selectable selected={selectedIds.has(t.id)} onToggle={toggleSelected}/>)}</div>
+            </div>
+            <aside className="grid-preview-panel">
+              <div className="grid-preview-head"><div><span>LIVE PREVIEW</span><strong>CASH APES is always included</strong></div></div>
+              <div className="grid-text-box"><label>CUSTOM TEXT <small>optional</small></label><input maxLength={48} value={gridText} onChange={e => setGridText(e.target.value)} placeholder="e.g. JUNGLE CREW 🦍"/><em>{gridText.length}/48</em></div>
+              {selected.length ? <div className="grid-canvas-wrap"><canvas ref={previewCanvasRef}/></div> : <div className="grid-preview-empty">SELECT APES TO PREVIEW YOUR GRID</div>}
+              <button className="download preview-download" disabled={!selected.length || gridBusy} onClick={createGrid}><Download size={17}/>{gridBusy ? "BUILDING…" : "DOWNLOAD PNG"}</button>
+            </aside>
+          </div>
+        </>}
       </section>}
 
       <footer><span>CASH APES • #BAYC 2.0 • ROBINHOOD CHAIN</span><div className="footer-links"><a href={SITE_CONFIG.openSeaUrl} target="_blank" rel="noreferrer">OPENSEA <ExternalLink size={12}/></a><a href={SITE_CONFIG.xUrl} target="_blank" rel="noreferrer">X <X size={12}/></a><a href={`${SITE_CONFIG.explorerBaseUrl}/address/${SITE_CONFIG.contractAddress}`} target="_blank" rel="noreferrer">CONTRACT <ExternalLink size={12}/></a></div></footer>
