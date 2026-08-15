@@ -162,6 +162,7 @@ function App() {
   const [gridSize, setGridSize] = useState(3);
   const [gridBusy, setGridBusy] = useState(false);
   const [gridText, setGridText] = useState("");
+  const [showGridNumbers, setShowGridNumbers] = useState(true);
   const previewCanvasRef = useRef(null);
 
   useEffect(() => {
@@ -278,23 +279,27 @@ function App() {
   }, [address, rarityIndex]);
   useEffect(() => { if (isConnected && (tab === "my" || tab === "grid")) loadMyApes(); }, [isConnected, tab, loadMyApes]);
 
-  function toggleSelected(token) { setSelected(current => current.some(t => t.id === token.id) ? current.filter(t => t.id !== token.id) : current.length >= 16 ? current : [...current, token]); }
+  function toggleSelected(token) { setSelected(current => current.some(t => t.id === token.id) ? current.filter(t => t.id !== token.id) : current.length >= 100 ? current : [...current, token]); }
   const selectedIds = useMemo(() => new Set(selected.map(t => t.id)), [selected]);
   async function imageToObjectUrl(url) { const r = await fetch(url); if (!r.ok) throw new Error("Image fetch failed"); return URL.createObjectURL(await r.blob()); }
   async function drawGrid(canvas, forDownload = false) {
     if (!canvas || !selected.length) return;
     const cols = Math.max(1, Math.min(gridSize, selected.length)), rows = Math.ceil(selected.length / cols);
-    const cell = forDownload ? 760 : 320, header = forDownload ? 300 : 130, footer = forDownload ? 120 : 56;
+    const targetMax = forDownload ? 4800 : 2600;
+    const baseCell = forDownload ? 620 : 300;
+    const cell = Math.max(forDownload ? 260 : 150, Math.min(baseCell, Math.floor(targetMax / cols)));
+    const header = Math.max(forDownload ? 220 : 105, Math.round(cell * (forDownload ? .48 : .42)));
+    const footer = Math.max(forDownload ? 82 : 42, Math.round(cell * .18));
     canvas.width = cols * cell; canvas.height = header + rows * cell + footer;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.textAlign = "center"; ctx.fillStyle = "#c8ff00"; ctx.font = `900 ${Math.min(forDownload ? 140 : 58, canvas.width / 7)}px Arial Black, Arial`;
-    ctx.fillText("CASH APES", canvas.width / 2, forDownload ? 118 : 52);
+    ctx.fillText("CASH APES", canvas.width / 2, Math.round(header * .40));
     const custom = gridText.trim();
     ctx.fillStyle = "#fff"; ctx.font = `700 ${Math.min(forDownload ? 52 : 22, canvas.width / 18)}px Arial`;
-    ctx.fillText(custom || `${selected.length} APES • ROBINHOOD CHAIN`, canvas.width / 2, forDownload ? 205 : 88, canvas.width - 40);
+    ctx.fillText(custom || `${selected.length} APES • ROBINHOOD CHAIN`, canvas.width / 2, Math.round(header * .69), canvas.width - 40);
     ctx.fillStyle = "#777"; ctx.font = `700 ${Math.min(forDownload ? 28 : 12, canvas.width / 30)}px Arial`;
-    ctx.fillText(`${selected.length} APES • ROBINHOOD CHAIN`, canvas.width / 2, forDownload ? 255 : 112);
+    ctx.fillText(`${selected.length} APES • ROBINHOOD CHAIN`, canvas.width / 2, Math.round(header * .88));
     const objectUrls = [];
     try {
       for (let i = 0; i < selected.length; i++) {
@@ -306,8 +311,12 @@ function App() {
           const scale = Math.max(cell / img.width, cell / img.height), w = img.width * scale, h = img.height * scale;
           ctx.save(); ctx.beginPath(); ctx.rect(x + 5, y + 5, cell - 10, cell - 10); ctx.clip(); ctx.drawImage(img, x + (cell - w) / 2, y + (cell - h) / 2, w, h); ctx.restore();
         }
-        ctx.fillStyle = "rgba(0,0,0,.72)"; ctx.fillRect(x + 10, y + cell - (forDownload ? 78 : 34), forDownload ? 190 : 82, forDownload ? 48 : 22);
-        ctx.fillStyle = "#c8ff00"; ctx.textAlign = "left"; ctx.font = `800 ${forDownload ? 26 : 12}px Arial`; ctx.fillText(`#${token.id}`, x + (forDownload ? 28 : 16), y + cell - (forDownload ? 46 : 18));
+        if (showGridNumbers) {
+          const labelH = Math.max(20, Math.round(cell * .075));
+          const labelW = Math.max(70, Math.round(cell * .25));
+          ctx.fillStyle = "rgba(0,0,0,.72)"; ctx.fillRect(x + Math.round(cell*.018), y + cell - labelH - Math.round(cell*.018), labelW, labelH);
+          ctx.fillStyle = "#c8ff00"; ctx.textAlign = "left"; ctx.font = `800 ${Math.max(11, Math.round(cell*.036))}px Arial`; ctx.fillText(`#${token.id}`, x + Math.round(cell*.035), y + cell - Math.round(cell*.04));
+        }
       }
       ctx.textAlign = "center"; ctx.fillStyle = "#777"; ctx.font = `700 ${forDownload ? 28 : 12}px Arial`; ctx.fillText("CASH APES • COMMUNITY GRID", canvas.width / 2, canvas.height - (forDownload ? 46 : 22));
     } finally { objectUrls.forEach(URL.revokeObjectURL); }
@@ -317,7 +326,7 @@ function App() {
     let cancelled = false;
     (async () => { try { if (!cancelled) await drawGrid(previewCanvasRef.current, false); } catch (e) { console.error(e); } })();
     return () => { cancelled = true; };
-  }, [tab, selected, gridSize, gridText]);
+  }, [tab, selected, gridSize, gridText, showGridNumbers]);
   async function createGrid() {
     if (!selected.length) return; setGridBusy(true);
     try {
@@ -382,9 +391,15 @@ function App() {
       </section>}
 
       {tab === "grid" && <section className="workspace route-workspace">
-        <div className="section-head"><div><span className="kicker">MAKE IT YOURS</span><h2>Grid Builder</h2><p>Select up to 16 Cash Apes, preview the grid live, add your own text and download it.</p></div></div>
+        <div className="section-head"><div><span className="kicker">MAKE IT YOURS</span><h2>Grid Builder</h2><p>Select up to 100 Cash Apes, preview the grid live, add your own text and download it.</p></div></div>
         {!isConnected ? <ConnectPanel open={open}/> : <>
-          <div className="builder-bar"><div><span>SELECTED</span><strong>{selected.length} / 16</strong></div><div className="grid-size"><span>COLUMNS</span>{[2,3,4].map(n => <button key={n} className={gridSize === n ? "active" : ""} onClick={() => setGridSize(n)}>{n}</button>)}</div><button className="download" disabled={!selected.length || gridBusy} onClick={createGrid}><Download size={17}/>{gridBusy ? "BUILDING…" : "DOWNLOAD PNG"}</button></div>
+          <div className="builder-bar">
+            <div><span>SELECTED</span><strong>{selected.length} / 100</strong></div>
+            <div className="grid-size"><span>COLUMNS</span>{[2,3,4,5,6,8,10].map(n => <button key={n} className={gridSize === n ? "active" : ""} onClick={() => setGridSize(n)}>{n}</button>)}</div>
+            <button className="builder-action" onClick={() => setSelected(myTokens.slice(0,100))} disabled={!myTokens.length}>SELECT UP TO 100</button>
+            <button className="builder-action" onClick={() => setSelected([])} disabled={!selected.length}>CLEAR</button>
+            <button className="download" disabled={!selected.length || gridBusy} onClick={createGrid}><Download size={17}/>{gridBusy ? "BUILDING…" : "DOWNLOAD PNG"}</button>
+          </div>
           <div className="grid-builder-layout">
             <div className="grid-picker">
               <div className="grid-picker-title"><span>YOUR APES</span><strong>CLICK TO SELECT</strong></div>
@@ -395,6 +410,7 @@ function App() {
             <aside className="grid-preview-panel">
               <div className="grid-preview-head"><div><span>LIVE PREVIEW</span><strong>CASH APES is always included</strong></div></div>
               <div className="grid-text-box"><label>CUSTOM TEXT <small>optional</small></label><input maxLength={48} value={gridText} onChange={e => setGridText(e.target.value)} placeholder="e.g. JUNGLE CREW 🦍"/><em>{gridText.length}/48</em></div>
+              <label className="number-toggle"><input type="checkbox" checked={showGridNumbers} onChange={e => setShowGridNumbers(e.target.checked)}/><span>SHOW NFT NUMBERS</span><strong>{showGridNumbers ? "ON" : "OFF"}</strong></label>
               {selected.length ? <div className="grid-canvas-wrap"><canvas ref={previewCanvasRef}/></div> : <div className="grid-preview-empty">SELECT APES TO PREVIEW YOUR GRID</div>}
               <button className="download preview-download" disabled={!selected.length || gridBusy} onClick={createGrid}><Download size={17}/>{gridBusy ? "BUILDING…" : "DOWNLOAD PNG"}</button>
             </aside>
