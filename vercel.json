@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/my-apes", "destination": "/index.html" },
+    { "source": "/grid-builder", "destination": "/index.html" }
+  ]
+}
